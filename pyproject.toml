@@ -1,0 +1,30 @@
+[project]
+name = "minitune"
+version = "0.1.0"
+description = "A transparent and minimal framework for post-training LLMs."
+authors = [{ name = "Your Name", email = "your@email.com" }]
+dependencies = [
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+    "datasets>=2.18.0",
+    "accelerate>=0.29.0",
+    "peft>=0.10.0",
+    "omegaconf>=2.3.0",
+    "vllm>=0.4.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "tensorboard>=2.16.0",
+    "bitsandbytes" # For 4/8-bit quantization
+]
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+# Add torch index for uv
+[tool.uv.sources]
+torch = { url = "https://download.pytorch.org/whl/cu121" }
