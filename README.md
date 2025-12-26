@@ -1,20 +1,21 @@
 # minitune
 
-`minitune` is a small, research-focused Python library for post-training Large Language Models. It provides a clean and transparent codebase for common alignment tasks like Supervised Fine-Tuning (SFT) and Reinforcement Learning (PPO), built on top of the Hugging Face ecosystem.
+`minitune` is a small, research-focused Python library for post-training Large Language Models. It provides a clean and transparent codebase for common alignment tasks like Supervised Fine-Tuning (SFT) and Reinforcement Learning (DPO, GRPO), built on top of the Hugging Face ecosystem.
 
-The primary goal of `minitune` is to be powerful enough for real research while being simple enough for learning and rapid experimentation. It avoids high-level abstractions like the Hugging Face `Trainer` in favor of an explicit, `accelerate`-powered training loop that gives you full control.
+The primary goal of `minitune` is to be powerful enough for real research while being simple enough for learning and rapid experimentation. It avoids high-level abstractions like the Hugging Face `Trainer`.
+
+In a nutshell, this library is currently my attempt to delve deeper into the knitty grity details of large scale model training, and share the same with the community.
 
 ### Core Principles
 
 *   **Configuration over Code:** All experiment parameters are defined in simple YAML files.
 *   **Transparency over Abstraction:** You have direct access to the PyTorch training loop, powered by `accelerate` for seamless distributed training and mixed-precision.
 *   **Lean on the Ecosystem:** Uses the best-in-class libraries (`transformers`, `peft`, `vllm`, `accelerate`) for what they do best.
-*   **Built for Research:** Easily extendable for custom loss functions, model architectures, and advanced training techniques.
 
 ### Features
 
 *   **Supervised Fine-Tuning (SFT):** Efficiently fine-tune models using PEFT (LoRA).
-*   **Reinforcement Learning (RLHF):** A clean implementation of Proximal Policy Optimization (PPO).
+*   **Reinforcement Learning:**
 *   **High-Performance Inference:** Integrated with `vllm` for fast and memory-efficient text generation.
 
 ### Installation
@@ -85,43 +86,6 @@ The project uses `uv` for fast and reliable package management.
     accelerate launch examples/01_run_sft.py --config-path configs/sft_example.yaml
     ```
 
-### Quickstart: Reinforcement Learning (PPO)
-
-1.  **Define a Configuration:**
-    Create a config like `configs/ppo_example.yaml`. This assumes you have already run SFT and have a model checkpoint.
-
-    ```yaml
-    # configs/ppo_example.yaml
-    model:
-      name_or_path: "google/gemma-2b" # Base model for reference
-
-    peft:
-      r: 16 # Must match the SFT PEFT config
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-
-    data:
-      path: "examples/data/rl_prompts.jsonl"
-      prompt_column: "prompt"
-
-    rl:
-      output_dir: "./models/gemma-2b-ppo"
-      sft_model_path: "./models/gemma-2b-sft" # <-- Path to your SFT model
-      reward_model_path: "distilbert-base-uncased-finetuned-sst-2-english"
-      learning_rate: 1.0e-6
-      ppo_epochs: 4
-      num_rollouts: 128
-      batch_size: 4
-      kl_penalty_coeff: 0.05
-    ```
-
-2.  **Run the Training Script:**
-    Use the `examples/02_run_ppo.py` script.
-
-    ```bash
-    # Run with accelerate (recommended for PPO)
-    accelerate launch examples/02_run_ppo.py --config-path configs/ppo_example.yaml
-    ```
 
 ### Project Structure
 
