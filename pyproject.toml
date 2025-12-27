@@ -2,7 +2,7 @@
 name = "minitune"
 version = "0.1.0"
 description = "A transparent and minimal framework for post-training LLMs."
-authors = [{ name = "Your Name", email = "your@email.com" }]
+authors = [{ name = "Pranoy Panda", email = "1997pranoy@email.com" }]
 dependencies = [
     "torch>=2.2.0",
     "transformers>=4.40.0",
