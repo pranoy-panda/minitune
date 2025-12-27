@@ -1,3 +1,4 @@
+# minitune/config.py
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -18,8 +19,17 @@ class PeftConfig:
 @dataclass
 class DataConfig:
     path: str
-    prompt_column: str
-    response_column: Optional[str] = None # Not needed for RL prompts
+    split: str = "train"
+    test_size: float = 0.1          # Auto-split validation percentage
+    max_input_token_length: int = 2048 # Context Length
+    
+    # "chat" (list of dicts) or "instruction" (separate columns)
+    format_type: str = "chat" 
+    
+    # Column mappings
+    chat_column: str = "messages"       # For "chat" format
+    prompt_column: str = "instruction"  # For "instruction" format
+    response_column: str = "response"   # For "instruction" format
 
 @dataclass
 class SFTConfig:
@@ -29,6 +39,7 @@ class SFTConfig:
     batch_size: int = 2
     gradient_accumulation_steps: int = 2
     logging_steps: int = 10
+    eval_steps: int = 50
 
 @dataclass
 class RLConfig:

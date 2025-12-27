@@ -36,8 +36,15 @@ The project uses `uv` for fast and reliable package management.
     # Activate it (on Linux/macOS)
     source .venv/bin/activate
 
+    # set cuda paths
+    export CUDA_HOME="<replace with whatever ur path is, eg. /usr/local/cuda-12.4.0>"
+    export PATH="${CUDA_HOME}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+
     # Install the project in editable mode with all dependencies
-    uv pip install -e .
+    uv pip install -e ".[dev]" --no-build-isolation
+
+    # -no-build-isolation is required as to build `flash-attn` as it requires torch, but uv by default builds in isolation. So, this flag forces uv to build without isolation.
     ```
 
 ### Quickstart: Supervised Fine-Tuning (SFT)

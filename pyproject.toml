@@ -14,9 +14,16 @@ dependencies = [
     "typer>=0.9.0",
     "rich>=13.0.0",
     "tensorboard>=2.16.0",
-    "bitsandbytes" # For 4/8-bit quantization
+    "flash-attn>=2.5.0",
+    "bitsandbytes"
 ]
 requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
 
 [build-system]
 requires = ["setuptools"]
@@ -24,3 +31,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]

@@ -1,0 +1,19 @@
+# configs/accelerate_fsdp_a40.yaml
+compute_environment: LOCAL_MACHINE
+distributed_type: FSDP
+machine_rank: 0
+main_process_ip: null
+main_process_port: null
+mixed_precision: bf16
+num_machines: 1
+num_processes: 4  # CHANGE THIS to the number of GPUs you have (e.g., 15)
+use_cpu: false
+fsdp_config:
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_backward_prefetch: BACKWARD_PRE
+  fsdp_forward_prefetch: false # Disabled for A40 bandwidth optimization
+  fsdp_offload_params: false
+  fsdp_sharding_strategy: FULL_SHARD # Use HYBRID_SHARD if scaling to multiple nodes
+  fsdp_state_dict_type: SHARDED_STATE_DICT
+  fsdp_sync_module_states: true
+  fsdp_use_orig_params: true
