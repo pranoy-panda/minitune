@@ -24,7 +24,7 @@ The project uses `uv` for fast and reliable package management.
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/minitune.git
+    git clone https://github.com/pranoy-panda/minitune.git
     cd minitune
     ```
 

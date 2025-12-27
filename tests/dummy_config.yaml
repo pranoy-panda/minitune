@@ -1,0 +1,23 @@
+model:
+  name_or_path: "gpt2"
+  use_flash_attention_2: true
+
+peft:
+  r: 16
+  lora_alpha: 32
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+
+data:
+  path: "examples/data/sft_data.jsonl"
+  prompt_column: "prompt"
+  response_column: "response"
+
+sft:
+  output_dir: "tmp_test_output"
+  learning_rate: 2.0e-5
+  epochs: 1
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  logging_steps: 1
