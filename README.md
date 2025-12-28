@@ -75,6 +75,7 @@ python minitune/autotuner/engine.py \
     --model-name "Qwen/Qwen2.5-3B-Instruct" \
     --dataset-path "HuggingFaceH4/no_robots" \
     --target-global-batch-size 128 \
+    -- num-gpus 4 \
     --strategy-type heuristic
 ```
 
