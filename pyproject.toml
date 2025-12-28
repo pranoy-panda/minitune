@@ -15,6 +15,7 @@ dependencies = [
     "rich>=13.0.0",
     "tensorboard>=2.16.0",
     "flash-attn>=2.5.0",
+    "scikit-optimize">=0.10.2,
     "bitsandbytes"
 ]
 requires-python = ">=3.10"

@@ -6,7 +6,7 @@ from collections import deque
 # Hardware specs for common GPUs (Theoretical Peak TFLOPS for BF16/FP16)
 # Sources: NVIDIA Whitepapers
 GPU_SPECS = {
-    "NVIDIA A40": 149.7e12,  # ~150 TFLOPS (Tensor Float 32 / BF16)
+    "NVIDIA A40": 149.7e12,  # ~150 TFLOPS (FP16)
     "NVIDIA A100-SXM4-40GB": 312e12,
     "NVIDIA A100-PCIE-40GB": 312e12,
     "NVIDIA H100": 989e12,   # FP16 Tensor Core
@@ -27,12 +27,9 @@ def get_gpu_peak_flops():
     for name, flops in GPU_SPECS.items():
         if name in device_name:
             return flops
-            
-    # Heuristic for A40 if exact string match fails
-    if "A40" in device_name:
-        return 149.7e12
         
-    print(f"Warning: GPU {device_name} not found in specs. Using default.")
+    print(f"Error: GPU {device_name} not found in specs. Using default.")
+    exit()
     return GPU_SPECS["Unknown"]
 
 class MFUCalculator:

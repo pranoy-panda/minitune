@@ -1,8 +1,7 @@
-# minitune/config.py
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-@dataclass
+@dataclass #  a special type of class designed specifically to hold data
 class ModelConfig:
     name_or_path: str
     use_flash_attention_2: bool = True
@@ -54,9 +53,22 @@ class RLConfig:
     max_new_tokens: int = 50
 
 @dataclass
+class DPOConfig:
+    output_dir: str
+    beta: float = 0.1          # The temperature/strength of the KL penalty
+    learning_rate: float = 5.0e-7 # DPO usually needs lower LR than SFT
+    batch_size: int = 1
+    gradient_accumulation_steps: int = 4
+    epochs: int = 1
+    logging_steps: int = 10
+    max_length: int = 1024
+    max_prompt_length: int = 512
+    
+@dataclass
 class TrainConfig:
     model: ModelConfig
     data: DataConfig
     peft: Optional[PeftConfig] = None
     sft: Optional[SFTConfig] = None
-    rl: Optional[RLConfig] = None
+    grpo: Optional[RLConfig] = None
+    dpo: Optional[DPOConfig] = None

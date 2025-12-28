@@ -9,7 +9,7 @@ from torch.optim import AdamW
 from torch.utils.tensorboard import SummaryWriter
 from rich.progress import Progress
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 from dataclasses import asdict, is_dataclass
 from omegaconf import DictConfig, OmegaConf
 
@@ -49,49 +49,53 @@ class SFTTrainer:
         if train_dataset is not None:
             self.train_dataset = train_dataset
         else:
-            self.train_dataset = load_and_prepare_dataset(config.data, self.tokenizer)
+            # Handle the case where loader returns (train, test) tuple
+            loaded_data = load_and_prepare_dataset(config.data, self.tokenizer)
+            if isinstance(loaded_data, tuple):
+                self.train_dataset = loaded_data[0]
+                # Automatically set eval_dataset if it wasn't provided explicitly
+                if self.eval_dataset is None:
+                    self.eval_dataset = loaded_data[1]
+            else:
+                self.train_dataset = loaded_data
 
         data_collator = DataCollatorForLanguageModeling(tokenizer=self.tokenizer, mlm=False)
         self.train_dataloader = DataLoader(
             self.train_dataset,
             batch_size=config.sft.batch_size,
             collate_fn=data_collator,
-            shuffle=True
+            shuffle=True,
+            num_workers=4,        # Use CPU cores to prep data
+            pin_memory=True,      # Faster RAM->VRAM transfer
+            prefetch_factor=2,    # Pre-load 2 batches per worker
+            persistent_workers=True # Don't kill workers after every epoch
         )
 
         # Load model
         model = AutoModelForCausalLM.from_pretrained(
             config.model.name_or_path,
-            #use_flash_attention_2=config.model.use_flash_attention_2,
             attn_implementation="flash_attention_2" if config.model.use_flash_attention_2 else "default",
             torch_dtype=torch.bfloat16,
-            device_map=self.accelerator.device, 
+            device_map=None, # Explicitly None for FSDP/Accelerator handling
             trust_remote_code=True,
         )
 
-        # --- Safe PEFT Config Loading (in accordance with OmegaConf)---
+        # --- Safe PEFT Config Loading ---
         if config.peft:
-            # We need to convert config.peft to a clean dict, handling 
-            # both Dataclasses and OmegaConf DictConfigs
             if isinstance(config.peft, DictConfig):
-                # Resolve OmegaConf object to primitive dict (removes _metadata)
                 peft_args = OmegaConf.to_container(config.peft, resolve=True)
             elif is_dataclass(config.peft):
                 peft_args = asdict(config.peft)
             else:
-                # It's already a dict (fallback)
                 peft_args = config.peft if isinstance(config.peft, dict) else config.peft.__dict__
 
-            # Filter out any internal keys that might still persist (safety net)
             peft_args = {k: v for k, v in peft_args.items() if not k.startswith("_")}
             
             peft_config = LoraConfig(**peft_args)
             self.model = get_peft_model(model, peft_config)
             
-            # Force LoRA adapters (often fp32) to match base model (bf16), else while distributed training when communication happens, lora weights and base model weights have different dtypes
-            # This prevents "ValueError: Must flatten tensors with uniform dtype" in DDP/FSDP
+            # Force LoRA adapters to bf16 for FSDP/DDP compatibility
             if config.model.name_or_path: 
-                 # We assume generic bf16 training based on your previous configs
                  self.model = self.model.to(torch.bfloat16)
         else:
             self.model = model
@@ -99,6 +103,10 @@ class SFTTrainer:
         # Optimizer
         self.optimizer = AdamW(self.model.parameters(), lr=config.sft.learning_rate)
 
+        # --- Initialize Profiler ---
+        # Initialize before prepare() to get accurate parameter count
+        self.mfu_calc = MFUCalculator(self.model)
+        
         # Prepare for distributed training
         self.model, self.optimizer, self.train_dataloader = self.accelerator.prepare(
             self.model, self.optimizer, self.train_dataloader
@@ -106,89 +114,100 @@ class SFTTrainer:
         self.global_step = 0
 
     def compute_loss(self, model, batch):
-        """
-        Helper to compute loss, using custom function if provided.
-        """
+        """Helper to compute loss, using custom function if provided."""
         outputs = model(**batch)
         
         if self.loss_fn is not None:
-            # Shift labels/logits for Causal LM (Predict Next Token)
-            # Logits: [Batch, Seq, Vocab] -> Remove last token prediction
             logits = outputs.logits[..., :-1, :].contiguous()
-            # Labels: [Batch, Seq] -> Remove first token (since it wasn't predicted)
             labels = batch["labels"][..., 1:].contiguous()
-            
             return self.loss_fn(logits, labels)
             
         return outputs.loss
 
-    def train(self, save_model=False):
-        """Main training loop."""
-        total_steps = len(self.train_dataloader) // self.config.sft.gradient_accumulation_steps * self.config.sft.epochs
+    def train(self, save_model=False, max_steps: Optional[int] = None) -> Dict[str, float]:
+        """
+        Main training loop.
+        
+        Args:
+            save_model: Whether to save the final model to disk.
+            max_steps: If provided, stops training after this many steps (used for Auto-Tuning).
+            
+        Returns:
+            Dict containing profiling metrics (MFU, Peak Memory, etc.)
+        """
+        # Calculate total optimization steps (Updates)
+        total_steps = (len(self.train_dataloader) // self.config.sft.gradient_accumulation_steps) * self.config.sft.epochs
+        
+        if max_steps:
+            total_steps = min(total_steps, max_steps)
         
         progress = Progress(disable=not self.accelerator.is_main_process)
         task = progress.add_task("[green]Training...", total=total_steps)
-
-        # --- Initialize Profiler ---
-        mfu_calc = MFUCalculator(self.model)
-
+        
+        accumulated_tokens = 0 
+        avg_mfu = 0.0
+        steps_counted = 0
+        
         with progress:
             for epoch in range(self.config.sft.epochs):
                 for step, batch in enumerate(self.train_dataloader):
+                    
+                    # Stop if we hit the limit
+                    if max_steps and self.global_step >= max_steps:
+                        break
+                        
                     self.model.train()
                     with self.accelerator.accumulate(self.model):
                         loss = self.compute_loss(self.model, batch)
                         self.accelerator.backward(loss)
+                        accumulated_tokens += batch["input_ids"].numel()
+                    
                         self.optimizer.step()
                         self.optimizer.zero_grad()
 
                     if self.accelerator.sync_gradients:
-                        # --- Profiling Step ---
-                        # Calculate total tokens in this batch (Batch Size * Seq Len)
-                        # Note: If we use gradient accumulation, this is technically 
-                        # tokens per micro-step, but MFU averages out over time.
-                        # Here, we calculate throughput per physical forward/backward pass.
+                        # --- Profiling & Update Step ---
+                        mfu, tps = self.mfu_calc.step(accumulated_tokens)
+                        accumulated_tokens = 0 
                         
-                        # We just finished 'gradient_accumulation_steps' micro-batches.
-                        # The timer covers that whole duration.
-                        # So we must sum the tokens from ALL those steps.
-                        
-                        # Current batch tokens
-                        micro_batch_tokens = batch["input_ids"].numel()
-                        
-                        # Total tokens processed during this time window
-                        total_tokens_accumulated = micro_batch_tokens * self.config.sft.gradient_accumulation_steps
-                        
-                        mfu, tps = mfu_calc.step(total_tokens_accumulated)
+                        if self.global_step > 5:
+                            avg_mfu += mfu
+                            steps_counted += 1
 
-                        progress.update(task, advance=1, description=f"[green]SFT (MFU: {mfu*100:.2f}%)")
+                        # Update Progress Bar
+                        # progress.update(task, advance=1, description=f"[green]SFT (MFU: {mfu*100:.2f}%)")
+                        progress.update(
+                            task, 
+                            advance=1, 
+                            description=f"[green]Epoch {epoch+1}/{self.config.sft.epochs} | Step {self.global_step}/{total_steps} | MFU: {mfu*100:.2f}%"
+                        )
                         self.global_step += 1
                         
+                        # Logging
                         if self.global_step % self.config.sft.logging_steps == 0:
                             if self.accelerator.is_main_process:
                                 self.writer.add_scalar("loss/sft", loss.item(), self.global_step)
                                 self.writer.add_scalar("perf/mfu", mfu, self.global_step)
                                 self.writer.add_scalar("perf/tokens_per_sec", tps, self.global_step)
                         
+                        # Evaluation
                         if self.eval_fn and self.global_step % self.config.sft.eval_steps == 0:
-                            # 1. Sync before eval
                             self.accelerator.wait_for_everyone()
-                            
-                            # 2. Run the user-provided function
-                            # We pass 'self' so the function has access to model/tokenizer
                             metrics = self.eval_fn(self) 
-                            
-                            # 3. Log results (Only Main Process writes to disk)
                             if self.accelerator.is_main_process and metrics:
                                 for metric_name, value in metrics.items():
                                     self.writer.add_scalar(f"eval/{metric_name}", value, self.global_step)
-                                    # Optional: Print to console
-                                    progress.console.print(f"[bold blue]Eval step {self.global_step}: {metric_name} = {value:.4f}[/bold blue]")
-                            
-                            # 4. Sync after eval to prevent race conditions
                             self.accelerator.wait_for_everyone()
+                
+                if max_steps and self.global_step >= max_steps:
+                    break
         
         if save_model: self.save_model()
+        
+        return {
+            "avg_mfu": avg_mfu / max(1, steps_counted),
+            "peak_memory_mb": torch.cuda.max_memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
+        }
 
     def save_model(self):
         """Saves the final model."""
