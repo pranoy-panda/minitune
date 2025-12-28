@@ -89,9 +89,9 @@ We tune system parameters that directly impact memory and compute efficiency:
 
 ---
 
-## 5. Search Algorithms
+## 5. Search Algorithms Implemented
 
-### 5.1 Heuristic Binary Search (Baseline)
+### 5.1 Heuristic Binary Search 
 
 A simple, robust algorithm that converges in 8-12 iterations:
 
@@ -121,7 +121,7 @@ A simple, robust algorithm that converges in 8-12 iterations:
 
 ---
 
-### 5.2 Bayesian Optimization (Advanced)
+### 5.2 Bayesian Optimization
 
 For sample-efficient search with complex interactions between parameters:
 
@@ -162,7 +162,7 @@ For sample-efficient search with complex interactions between parameters:
 
 ---
 
-## 6. Expected Workflow
+## 6. Workflow of the Autotuner
 
 ```
 User: Provide model + dataset + target hardware
