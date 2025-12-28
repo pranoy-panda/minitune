@@ -99,27 +99,32 @@ The project uses `uv` for fast and reliable package management.
 ```
 minitune/
 ├── .gitignore
-├── README.md
-├── pyproject.toml
-├── configs/
-│   ├── ppo_example.yaml
-│   └── sft_example.yaml
-├── examples/
-│   ├── __init__.py
-│   ├── 01_run_sft.py
-│   ├── 02_run_ppo.py
-│   ├── 03_run_inference.py
-│   └── data/
-│       ├── rl_prompts.jsonl
-│       └── sft_data.jsonl
-└── minitune/
-    ├── __init__.py
-    ├── config.py
-    ├── data.py
-    ├── inference.py
-    ├── sft.py
-    └── rl/
-        ├── __init__.py
-        ├── core.py
-        └── ppo.py
+├── docs/
+├── configs
+│   ├── accelerate_fsdp_a40.yaml
+│   └── minitune_sft_config_example.yaml
+├── examples
+│   ├── 01_run_sft.py
+│   ├── 02_run_dpo.py
+│   ├── __init__.py
+├── minitune
+│   ├── autotuner
+│   │   ├── engine.py
+│   │   ├── __init__.py
+│   │   ├── README.md
+│   │   ├── strategies.py
+│   │   └── trial.py
+│   ├── config.py
+│   ├── data.py
+│   ├── inference.py
+│   ├── __init__.py
+│   ├── losses.py
+│   ├── rl
+│   │   ├── dpo.py
+│   │   └── __init__.py
+│   ├── sft.py
+│   └── utils
+│       └── profiling.py
+├── LICENSE
+└── pyproject.toml
 ```
