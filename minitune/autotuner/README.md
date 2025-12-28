@@ -91,33 +91,19 @@ We tune system parameters that directly impact memory and compute efficiency:
 
 ## 5. Search Algorithms Implemented
 
-### 5.1 Heuristic Binary Search 
+### 5.1 Heuristic Search (Linear Ramp)
+A greedy approach best for quickly finding the maximum safe micro-batch size.
 
-A simple, robust algorithm that converges in 8-12 iterations:
+**Algorithm:**
+1. *Initialization:* Start with `micro_batch_size = 1`.
+2. *Constraint Calculation:* Calculate required `gradient_accumulation_steps` to match the user's `Target Global Batch Size`.
+3. *Execution:* Run a short profiling job.
+4. *Decision Logic:*
+   - If *Successful* and Memory Usage < Safety Threshold (e.g., 90%): **Double** the micro-batch size.
+   - If *OOM* or Memory Usage > Safety Threshold: Stop and revert to the last successful config.
 
-```
-1. Start with conservative config:
-   - micro_batch_size = 1
-   - activation_checkpointing = true
-   - FULL_SHARD
-
-2. Profile current config → measure memory_used and MFU
-
-3. Decision rules:
-   IF memory_used < 0.70 × capacity AND MFU < target:
-       → Double micro_batch_size
-   ELIF memory_used > 0.85 × capacity:
-       → Halve micro_batch_size OR enable checkpointing
-   ELIF MFU < 0.80 × target AND checkpointing is ON:
-       → Disable checkpointing (if memory allows)
-   ELSE:
-       → Converged
-
-4. Repeat until convergence or max_iterations (default: 15)
-```
-
-**Pros:** Simple, interpretable, no external dependencies  
-**Cons:** May miss non-obvious configurations (e.g., when toggling checkpointing + adjusting batch size simultaneously is optimal)
+**Pros:** Deterministic, fast (usually 3-4 trials).  
+**Cons:** May settle for a "safe" option that isn't the absolute theoretical max.
 
 ---
 
